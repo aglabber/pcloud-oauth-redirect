@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pCloud-inloggning klar</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:#12151b; color:#e9edf3; margin:0; padding:24px; display:flex;
+       flex-direction:column; align-items:center; min-height:100vh; box-sizing:border-box;}
+  .card{background:#1b1f27; border:1px solid #2c323f; border-radius:14px; padding:20px;
+        max-width:480px; width:100%; margin-top:10vh;}
+  h1{font-size:18px; margin-top:0;}
+  textarea{width:100%; min-height:90px; background:#232834; color:#e9edf3;
+           border:1px solid #2c323f; border-radius:8px; padding:10px; font-size:13px;
+           font-family:monospace; box-sizing:border-box;}
+  button{background:#e8b93f; color:#1b1400; border:none; border-radius:10px;
+         padding:12px 18px; font-size:15px; font-weight:700; margin-top:12px; cursor:pointer;}
+  .muted{color:#8a93a3; font-size:13px;}
+  .ok{color:#8ef0bb;}
+  .err{color:#ff9d85;}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1 id="title">Bearbetar inloggningen...</h1>
+  <p class="muted" id="subtitle"></p>
+  <textarea id="tokenBox" readonly style="display:none;"></textarea>
+  <button id="copyBtn" style="display:none;">Kopiera koden</button>
+  <p class="muted" id="copiedMsg" style="display:none;">✓ Kopierad - gå tillbaka till Anteckningar-appen och klistra in.</p>
+</div>
+<script>
+  // pCloud skickar tillbaka access_token i URL:ens "fragment" (delen efter #),
+  // aldrig i själva webbadressen som skickas till servern - det är därför
+  // GitHub Pages (som bara serverar en statisk fil) räcker fint här, ingen
+  // egen server läser eller loggar token:en.
+  const hash = window.location.hash.replace(/^#/, '');
+  const params = new URLSearchParams(hash);
+  const token = params.get('access_token');
+  const hostname = params.get('hostname') || '';
+  const locationid = params.get('locationid') || '';
+
+  const titleEl = document.getElementById('title');
+  const subtitleEl = document.getElementById('subtitle');
+  const tokenBox = document.getElementById('tokenBox');
+  const copyBtn = document.getElementById('copyBtn');
+  const copiedMsg = document.getElementById('copiedMsg');
+
+  // Försök 1: skicka token:en automatiskt tillbaka till appen om den öppnade
+  // den här sidan i en popup (fungerar inte alltid, t.ex. om appen kördes
+  // som en lokal fil i vissa webbläsare - därför finns kopiera-varianten
+  // nedan som en garanterad reserv).
+  let autoSent = false;
+  if (token && window.opener){
+    try {
+      window.opener.postMessage({ type: 'pcloud-oauth-token', token: token, hostname: hostname, locationid: locationid }, '*');
+      autoSent = true;
+    } catch(e){ /* ignorera - manuell kopiering nedan tar över */ }
+  }
+
+  if (token){
+    titleEl.textContent = '✓ Inloggning lyckades';
+    titleEl.className = 'ok';
+    if (autoSent){
+      subtitleEl.textContent = 'Skickade koden automatiskt till appen. Om appen inte redan gått vidare av sig själv, kopiera koden nedan istället och klistra in den manuellt, sen kan du stänga den här fliken.';
+    } else {
+      subtitleEl.textContent = 'Kopiera koden nedan och klistra in den i Anteckningar-appen, sen kan du stänga den här fliken.';
+    }
+    tokenBox.value = token + (hostname ? ('|' + hostname) : '');
+    tokenBox.style.display = 'block';
+    copyBtn.style.display = 'inline-block';
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(tokenBox.value);
+      } catch(e){
+        tokenBox.select(); document.execCommand('copy');
+      }
+      copiedMsg.style.display = 'block';
+    });
+  } else {
+    titleEl.textContent = 'Inget svar hittades';
+    titleEl.className = 'err';
+    subtitleEl.textContent = 'pCloud skickade inte tillbaka någon kod. Gå tillbaka till appen och försök igen.';
+  }
+</script>
+</body>
+</html>
